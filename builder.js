@@ -277,43 +277,6 @@
         };
 
 
-        // Compile each level
-        var splitLevel = function(levelString) {
-
-            // Split each level string.
-            var objects = levelString.split("+");
-
-            // Run through each to search for multiplications
-            var finalBuild = [];
-            var regMatches;
-
-            _.each(objects, function(object) {
-
-                // Check to see if it has a multiplier. If so then add that many instances of it. else just add the one.
-                if (regMatches = object.match(/.+\*(\d)+$/)) {
-                    var repeatCount = regMatches[0];
-                    var newAbbreviation = object.replace(/\*\d+$/, "");
-
-                    _.times(repeatCount, function(n){
-
-                        finalBuild.push(newAbbreviation);
-                    });
-                } else {
-                    finalBuild.push(newAbbreviation);
-                }
-
-            });
-
-        };
-
-
-
-        // Compile each node
-
-
-
-
-
         // return the exposed functions
         return {
             createObject: createObject,
