@@ -39,7 +39,7 @@
         var levels = [];
 
         // Break apart the string into a workable nodes hierarchy
-        var splitHierarchy = function(abbString, origObjects, currNumber) {
+        var splitHierarchy = function(abbString, origObjects, currNumber, parentNumber) {
 
             var objects;
 
@@ -63,9 +63,21 @@
             // ----------------------- Child Calculation
 
 
+            // Check for brackets here, and update objects.
+            var bracketMatch = matchBrackets(abbString, objects);
+
+            // Feed back results from the bracket Matching.
+            objects = bracketMatch.objects;
+            abbString = bracketMatch.abbString;
+
 
             // check for first split. TODO: Check for quotes, or in brackets
             var matches = abbString.match(/(^[^>\+]+)([>\+])?/);
+
+            // if no matches, then return objects here.
+            if (!matches) {
+                return objects;
+            }
 
             var last = false;
             var newCurrNumber;
@@ -73,13 +85,22 @@
             if (checkMultiplications(matches[1])) {
                 newCurrNumber = checkMultiplications(matches[1]);
                 last = true;
+
             }
 
             // Strip out the multiplication if any
-            abbrWithoutMultiplication = stripMultiplication(matches[1]);
+            var abbrWithoutMultiplication = stripMultiplication(matches[1]);
 
-            // Create the object and push it onto the list.
-            var object = createObject(abbrWithoutMultiplication, (newCurrNumber? newCurrNumber: currNumber));
+            // Create the object and push it onto the list. Cases for the numbering provided
+            var object;
+
+            if (newCurrNumber) {
+                object = createObject(abbrWithoutMultiplication, newCurrNumber);
+            } else if (currNumber) {
+                object = createObject(abbrWithoutMultiplication, currNumber);
+            } else {
+                object = createObject(abbrWithoutMultiplication, parentNumber);
+            }
 
             // if it's a multiple, recreate the multiple before siblings
             if (newCurrNumber > 1) {
@@ -94,8 +115,14 @@
                 // change the string
                 abbString = abbString.slice(matches[0].length);
 
-                // set child
-                object.children = splitHierarchy(abbString);
+                // set child, passing down current numbering
+                if (newCurrNumber) {
+                    object.children = splitHierarchy(abbString, undefined, undefined, newCurrNumber);
+                } else if (currNumber) {
+                    object.children = splitHierarchy(abbString, undefined, undefined, currNumber);
+                } else {
+                    object.children = splitHierarchy(abbString, undefined, undefined, parentNumber);
+                }
 
             }
 
@@ -168,6 +195,76 @@
 
         };
 
+        // Used to filter out the context of the brackets
+        var matchBrackets = function(abbString, objects) {
+
+            var returnValue;
+
+            // check to see if it matches a bracket
+            if (abbString.match(/^\(/)) {
+
+                var position; // undefined to begin with
+                var count = 0;
+                var inQuote = false;
+
+                // Loop through and match on brackets
+                for (var i = 0, len = abbString.length; !position && i < len ; i++) {
+
+                    // Check for open bracket. Increase count.
+                    if (abbString[i] == '(' && !inQuote) {
+                        count += 1;
+
+                    // Match a matching close bracket. Decrease Count.
+                    } else if (abbString[i] ==')' && !inQuote) {
+                        count -= 1;
+
+                        // If it reaches back to zero, then set position, and also quit.
+                        if (count === 0) {
+                            position = i;
+                        }
+
+                    // be aware of quotes.
+                    } else if (abbString[i].match(/["']/)) {
+                        inQuote = !inQuote;
+                    }
+
+                }
+
+                // if it found brackets, return the string inside the brackets, and a multiplier.
+                if (position) {
+
+                    var bracketText = abbString.substr(1,position - 1);
+                    var multiples;
+
+                    //replace the text, and see if there's a following multiplication
+                    var remainingString = abbString.replace(abbString.substr(0,position+1), "");
+
+                    var matches = remainingString.match(/^\*(\d+)/);
+
+                    if (matches) {
+                        multiples = matches[1];
+                    }
+
+                    returnValue = {
+                        objects : splitHierarchy(bracketText, objects, multiples),
+                        abbString: stripMultiplication(remainingString)
+                    };
+
+                    return returnValue;
+
+                }
+
+
+            }
+
+            returnValue = {
+                objects : objects,
+                abbString: abbString
+            };
+
+            return returnValue;
+
+        };
 
         var buildHtmlTree = function(abbString) {
 
@@ -334,7 +431,8 @@
         // return the exposed functions
         return {
             createObject: createObject,
-            buildHtmlTree: buildHtmlTree
+            buildHtmlTree: buildHtmlTree,
+            matchBrackets: matchBrackets
         };
 
     }();
