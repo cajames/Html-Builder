@@ -39,7 +39,7 @@
         var levels = [];
 
         // Break apart the string into a workable nodes hierarchy
-        var splitHierarchy = function(abbString, origObjects) {
+        var splitHierarchy = function(abbString, origObjects, currNumber) {
 
             var objects;
 
@@ -49,21 +49,61 @@
                 objects = [];
             }
 
-            // check for first split.
+            // ----------------------- Parent Multiple Calculation
+
+            // if it's a multiple, recreate the multiple before siblings
+            if (currNumber > 1) {
+
+                // subtract one from multiple.
+                objects = splitHierarchy(abbString, objects, (currNumber === 1 ? undefined:currNumber-1));
+
+            }
+
+
+            // ----------------------- Child Calculation
+
+
+
+            // check for first split. TODO: Check for quotes, or in brackets
             var matches = abbString.match(/(^[^>\+]+)([>\+])?/);
 
-            // Create the object and push it onto the list.
-            var object = createObject(matches[1]);
-            objects.push(object);
+            var last = false;
+            var newCurrNumber;
+            // check for multiples
+            if (checkMultiplications(matches[1])) {
+                newCurrNumber = checkMultiplications(matches[1]);
+                last = true;
+            }
 
-            if (matches[2] == '>') { // child
+            // Strip out the multiplication if any
+            abbrWithoutMultiplication = stripMultiplication(matches[1]);
+
+            // Create the object and push it onto the list.
+            var object = createObject(abbrWithoutMultiplication, (newCurrNumber? newCurrNumber: currNumber));
+
+            // if it's a multiple, recreate the multiple before siblings
+            if (newCurrNumber > 1) {
+
+                // pass down the string without the parent multiplication
+                objects = splitHierarchy(abbString.replace(matches[1],abbrWithoutMultiplication), objects, (newCurrNumber === 1 ? undefined:newCurrNumber-1));
+
+            }
+
+            // if there's a child, create it (even for multiples)
+            if (matches[2] == '>') {
                 // change the string
                 abbString = abbString.slice(matches[0].length);
 
                 // set child
                 object.children = splitHierarchy(abbString);
 
-            } else if (matches[2] == '+') { // sibling
+            }
+
+            // Push it in.
+            objects.push(object);
+
+            // Only match sibling after last multiple.
+            if (matches[2] == '+' && (!currNumber || (last && currNumber))) { // sibling
 
                 // change the string. call self with objects
                 abbString = abbString.slice(matches[0].length);
@@ -144,7 +184,12 @@
         };
 
 
-        var createObject = function(createString) {
+        var createObject = function(createString, multiple) {
+
+            if (multiple) {
+                //replace any instance of $ with multiple in them
+                createString = createString.replace(/\$/g, multiple);
+            }
 
             var object = {
                 string: createString,
@@ -172,6 +217,15 @@
             }
 
             return multiples;
+
+        };
+
+        // Replaces multiplication
+        var stripMultiplication = function(createString) {
+
+            var matches = createString.replace(/\*(\d+)$/, '');
+
+            return matches;
 
         };
 
