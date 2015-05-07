@@ -64,15 +64,15 @@
 
 
             // Check for brackets here, and update objects.
-            var bracketMatch = matchBrackets(abbString, objects);
+            var bracketMatch = calculateObjectsInBrackets(abbString, objects);
 
             // Feed back results from the bracket Matching.
             objects = bracketMatch.objects;
             abbString = bracketMatch.abbString;
 
 
-            // check for first split. TODO: Check for quotes, or in brackets
-            var matches = abbString.match(/(^[^>\+]+)([>\+])?/);
+            // check for splitter.
+            var matches = matchSplitter(abbString);
 
             // if no matches, then return objects here.
             if (!matches) {
@@ -135,7 +135,14 @@
                 // change the string. call self with objects
                 abbString = abbString.slice(matches[0].length);
 
-                objects = splitHierarchy(abbString, objects);
+                // set child, passing down current numbering
+                if (newCurrNumber) {
+                    objects = splitHierarchy(abbString, objects, undefined, newCurrNumber);
+                } else if (currNumber) {
+                    objects = splitHierarchy(abbString, objects, undefined, currNumber);
+                } else {
+                    objects = splitHierarchy(abbString, objects, undefined, parentNumber);
+                }
 
             }
 
@@ -195,8 +202,123 @@
 
         };
 
+        // This function is used to confirm the building hierarchy
+        var matchSplitter = function(abbString) {
+
+            // matches is the element returned by a regex.
+            var matches;
+
+            // if it matches a '>' or '+' outside a quote, return
+            // the substring [1], the relationship [2] and whole string [0]..
+            var position = checkQuotes(abbString, '>+');
+
+            // This means that there is a splitter, and returns the position
+            if (position) {
+                var objectString = abbString.substr(0, position + 1);
+
+                // this should check for split(>+) at the end.
+                matches = objectString.match(/(^.+)([>\+])$/);
+                return matches;
+
+            // Else if no split, but there is text
+            } else if (abbString.length > 0) {
+                matches = abbString.match(/(^.+)([>\+])?$/);
+                return matches;
+            }
+
+            return matches;
+
+        };
+
+        // Can find a matching start and end not in quotes,
+        // or just an end that's not in quotes.
+        // Also quotes are ' " [ {
+        var checkQuotes = function(abbString, endChar, startChar) {
+
+            var position; // undefined to begin with
+            var count = 0;
+            var lastQuote;
+
+            var endCount = -1;
+
+            if (startChar) {
+                endCount = 0;
+            }
+
+            // Create the regex matches for Chars
+            var endCharRegex = new RegExp('^[' +endChar+']$');
+            var startCharRegex = new RegExp('^[' +startChar+']$');
+
+            // Loop through and match on brackets
+            for (var i = 0, len = abbString.length; !position && i < len ; i++) {
+
+                var currChar = abbString[i];
+
+                // Check for open bracket. Increase count.
+                if (startChar && currChar.match(startCharRegex) && !lastQuote) {
+                    count += 1;
+
+                // Match a matching close bracket. Decrease Count.
+            } else if (endChar && currChar.match(endCharRegex) && !lastQuote) {
+                    count -= 1;
+
+                    // If it reaches back to zero, then set position, and also quit.
+                    if (count === endCount) {
+                        position = i;
+                    }
+
+                // be aware of quotes.
+                } else if (currChar.match(/^["'\{\}\[\]]$/)) {
+
+                // all logic to check quotes here.
+
+                    // If not in quote previously.
+                    if (!lastQuote) {
+
+
+                        if (currChar.match(/^['"\[{]$/)) {
+                            lastQuote = currChar;
+                        }
+
+                    } else {
+
+                        switch (lastQuote) {
+                            case '"':
+                                if (currChar == '"') {
+                                    lastQuote = undefined;
+                                }
+                                break;
+
+                            case "'":
+                                if (currChar == "'") {
+                                    lastQuote = undefined;
+                                }
+                                break;
+
+                            case '{':
+                                if (currChar == '}') {
+                                    lastQuote = undefined;
+                                }
+                                break;
+
+                            case '[':
+                                if (currChar == ']') {
+                                    lastQuote = undefined;
+                                }
+                                break;
+                        }
+
+                    }
+
+                }
+            }
+
+            return position;
+
+        };
+
         // Used to filter out the context of the brackets
-        var matchBrackets = function(abbString, objects) {
+        var calculateObjectsInBrackets = function(abbString, objects) {
 
             var returnValue;
 
@@ -239,15 +361,22 @@
                     //replace the text, and see if there's a following multiplication
                     var remainingString = abbString.replace(abbString.substr(0,position+1), "");
 
+                    // Check to see if there/s any multiplications
                     var matches = remainingString.match(/^\*(\d+)/);
 
                     if (matches) {
                         multiples = matches[1];
+                        // If there are, remove it. Will be the first, unlike the stripMultiplication function,
+                        // which checks the end..
+                        remainingString = remainingString.replace(/^\*(\d+)/, "");
                     }
+
+                    // check to see if there's a '+' or '>' after, and remove it. By default, '+' is applied
+                    remainingString = remainingString.replace(/^[>\+]/, "");
 
                     returnValue = {
                         objects : splitHierarchy(bracketText, objects, multiples),
-                        abbString: stripMultiplication(remainingString)
+                        abbString: remainingString
                     };
 
                     return returnValue;
@@ -430,9 +559,9 @@
 
         // return the exposed functions
         return {
-            createObject: createObject,
             buildHtmlTree: buildHtmlTree,
-            matchBrackets: matchBrackets
+            checkQuotes:checkQuotes,
+            matchSplitter: matchSplitter
         };
 
     }();
