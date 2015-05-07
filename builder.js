@@ -515,7 +515,7 @@
             createString = createString.replace(/\{[^}]+\}/, '');
             createString = createString.replace(/\[[^}]+\]/, '');
 
-            var matches = createString.match(/#([\w-_]+)/);
+            var matches = createString.match(/#([\w\-_]+)/);
 
             if (matches) {
                 id = matches[1];
